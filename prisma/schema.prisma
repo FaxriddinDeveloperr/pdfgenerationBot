@@ -1,0 +1,115 @@
+// This is your Prisma schema file
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================
+// Buyurtmalar (Zayafkalar)
+// ===========================
+model Order {
+  id          Int       @id @default(autoincrement())
+  erpOrderId  String    @unique // ERP dagi ID (#SH-11965)
+  orderNumber String    // SH-11965
+  status      String    @default("new") // new, processing, completed, cancelled
+  
+  // Sana
+  orderDate   DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Sotuvchi ma'lumotlari
+  createdBy   String    // Zavqiddin Lutfulloyev
+  managerId   String
+  managerName String
+  
+  // Mijoz ma'lumotlari
+  clientName  String
+  clientPhone String
+  warehouse   String    // Ombor
+  
+  // Telegram ma'lumotlari
+  tgMessageId Int?      // Guruhda xabar ID
+  tgChatId    String?
+  rawMessage  String    // Asl xabar matni
+  
+  // Hujjatlar
+  items       OrderItem[]
+  documents   Document[]
+  yandexOrders YandexOrder[]
+  
+  @@map("orders")
+}
+
+// Buyurtma elementi
+model OrderItem {
+  id        Int    @id @default(autoincrement())
+  orderId   Int
+  order     Order  @relation(fields: [orderId], references: [id])
+  
+  name      String  // Era Solar 625W
+  quantity  Int     // 8
+  unit      String  @default("шт")
+  price     Float?
+  total     Float?
+  category  String?
+  
+  @@map("order_items")
+}
+
+// Generatsiya qilingan hujjatlar
+model Document {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  order       Order    @relation(fields: [orderId], references: [id])
+  
+  type        String   // nakladnoy | garant
+  filePath    String   // Fayl yo'li
+  fileUrl     String?  // Agar S3 da bo'lsa
+  tgFileId    String?  // Telegram file_id (qayta yuborish uchun)
+  
+  requestedBy String   // Kim so'ragan (Telegram user ID)
+  requestedAt DateTime @default(now())
+  
+  @@map("documents")
+}
+
+// Yandex Delivery buyurtmalari
+model YandexOrder {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  order       Order    @relation(fields: [orderId], references: [id])
+  
+  yandexId    String   @unique
+  status      String
+  trackingUrl String?
+  price       Float?
+  eta         String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("yandex_orders")
+}
+
+// Foydalanuvchilar (Sotuvchilar)
+model User {
+  id          Int      @id @default(autoincrement())
+  telegramId  String   @unique
+  username    String?
+  firstName   String?
+  lastName    String?
+  role        String   @default("seller") // seller | manager | admin
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("users")
+}

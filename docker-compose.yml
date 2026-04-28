@@ -1,0 +1,75 @@
+version: '3.9'
+
+services:
+  # ===========================
+  # BOT SERVICE
+  # ===========================
+  bot:
+    build: .
+    container_name: printvoltrabot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://printvoltra:${DB_PASSWORD}@postgres:5432/printvoltradb
+    volumes:
+      - ./logs:/app/logs
+      - ./assets:/app/assets
+      - pdf_temp:/app/temp/pdfs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - botnet
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===========================
+  # POSTGRESQL
+  # ===========================
+  postgres:
+    image: postgres:16-alpine
+    container_name: printvoltra_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: printvoltradb
+      POSTGRES_USER: printvoltra
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-strongpassword123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U printvoltra -d printvoltradb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - botnet
+    ports:
+      - "5432:5432"
+
+  # ===========================
+  # WATCHTOWER - Auto Update
+  # ===========================
+  watchtower:
+    image: containrrr/watchtower
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 86400 printvoltrabot
+    networks:
+      - botnet
+
+volumes:
+  postgres_data:
+    driver: local
+  pdf_temp:
+    driver: local
+
+networks:
+  botnet:
+    driver: bridge

@@ -1,0 +1,9 @@
+.env
+node_modules/
+dist/
+temp/
+logs/
+*.log
+.DS_Store
+*.pdf
+assets/logo.png
