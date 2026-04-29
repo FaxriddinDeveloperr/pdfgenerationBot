@@ -1,4 +1,4 @@
-import puppeteer, { Browser } from 'puppeteer-core';
+import puppeteer, { Browser } from 'puppeteer';
 import Handlebars from 'handlebars';
 import fs from 'fs';
 import path from 'path';
@@ -22,37 +22,11 @@ Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
 
 let browser: Browser | null = null;
 
-function getExecutablePath(): string {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-    return process.env.PUPPETEER_EXECUTABLE_PATH;
-  }
-  
-  const possiblePaths = [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/google-chrome',
-    '/snap/bin/chromium',
-    '/opt/google/chrome/chrome',
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
-  ];
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      return p;
-    }
-  }
-
-  // Fallback
-  return '/usr/bin/google-chrome-stable';
-}
-
 async function getBrowser(): Promise<Browser> {
   if (!browser) {
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: getExecutablePath(),
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',

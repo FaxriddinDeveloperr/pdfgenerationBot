@@ -13,35 +13,34 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "grammy": "^1.31.0",
+    "@grammyjs/auto-retry": "^2.0.1",
     "@grammyjs/conversations": "^1.2.0",
     "@grammyjs/menu": "^1.2.0",
-    "@grammyjs/auto-retry": "^2.0.1",
-    "puppeteer-core": "^22.0.0",
-    "handlebars": "^4.7.8",
-    "axios": "^1.7.0",
     "@prisma/client": "^5.13.0",
-    "dotenv": "^16.4.5",
-    "winston": "^3.13.0",
+    "axios": "^1.7.0",
     "dayjs": "^1.11.11",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "grammy": "^1.31.0",
+    "handlebars": "^4.7.8",
+    "node-cron": "^3.0.3",
     "qrcode": "^1.5.4",
     "sharp": "^0.33.4",
-    "node-cron": "^3.0.3",
-    "express": "^4.19.2"
+    "winston": "^3.13.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.5",
-    "ts-node-dev": "^2.0.0",
-    "ts-node": "^10.9.2",
-    "@types/node": "^20.12.12",
-    "@types/handlebars": "^4.1.0",
-    "@types/qrcode": "^1.5.5",
     "@types/express": "^4.17.21",
+    "@types/handlebars": "^4.1.0",
+    "@types/node": "^20.12.12",
     "@types/node-cron": "^3.0.11",
-    "prisma": "^5.13.0",
-    "eslint": "^8.57.0",
+    "@types/qrcode": "^1.5.5",
+    "@typescript-eslint/eslint-plugin": "^7.10.0",
     "@typescript-eslint/parser": "^7.10.0",
-    "@typescript-eslint/eslint-plugin": "^7.10.0"
+    "eslint": "^8.57.0",
+    "prisma": "^5.13.0",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5"
   },
   "engines": {
     "node": ">=20.0.0"
