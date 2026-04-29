@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/pdf/templates && cp -r src/pdf/templates/* dist/pdf/templates/",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
@@ -24,6 +24,7 @@
     "grammy": "^1.31.0",
     "handlebars": "^4.7.8",
     "node-cron": "^3.0.3",
+    "puppeteer": "^24.42.0",
     "qrcode": "^1.5.4",
     "sharp": "^0.33.4",
     "winston": "^3.13.0"
