@@ -33,6 +33,7 @@ export function isZayafkaMessage(text: string): boolean {
     /yangi\s+sotuv/i,
     /нова[яа]\s+отгрузка/i,  // Новая отгрузка
     /новый\s+заказ/i,
+    /закупка/i,               // Закупка
     /🛒/,
     /#SH-\d+/i,
     /zayafka/i,
@@ -73,6 +74,7 @@ export function parseFullZayafkaMessage(text: string): ErpOrder | null {
   // --- Buyurtma raqami ---
   const orderMatch =
     text.match(/отгрузка[^\n#]*#(\d+)/i) ||
+    text.match(/закупка[^\n#]*#(\d+)/i) ||
     text.match(/sotuv[^\n#]*#([A-Z]{0,3}-?\d+)/i) ||
     text.match(/#(SH-\d+)/i) ||
     text.match(/#(\d{2,10})\b/);
@@ -105,17 +107,18 @@ export function parseFullZayafkaMessage(text: string): ErpOrder | null {
   const managerFull = managerMatch ? managerMatch[1].trim() : createdByFull;
   const { name: managerName, role: managerRole } = splitNameRole(managerFull);
 
-  // --- Mijoz (o'zbek: Mijoz, rus: Клиент) ---
+  // --- Mijoz (o'zbek: Mijoz, rus: Клиент/Поставщик) ---
   const clientMatch =
-    text.match(/🙍[^\n]*(?:Mijoz|Клиент):\s*([^\n]+)/i) ||
-    text.match(/(?:Mijoz|Клиент):\s*([^\n]+)/i);
+    text.match(/🙍[^\n]*(?:Mijoz|Клиент|Поставщик):\s*([^\n]+)/i) ||
+    text.match(/(?:Mijoz|Клиент|Поставщик):\s*([^\n]+)/i);
   const clientName = clientMatch ? clientMatch[1].trim() : '—';
 
   // --- Telefon ---
   const phoneMatch =
     text.match(/📞\s*(?:Telefon|Телефон):\s*([^\n]+)/i) ||
     text.match(/(?:Telefon|Телефон):\s*([^\n]+)/i);
-  const clientPhone = phoneMatch ? phoneMatch[1].trim() : '—';
+  const rawPhone = phoneMatch ? phoneMatch[1].trim() : '—';
+  const clientPhone = rawPhone === '+' || rawPhone === '' ? '—' : rawPhone;
 
   // --- Ombor (o'zbek: Ombor, rus: Склад) ---
   const warehouseMatch =
@@ -136,8 +139,12 @@ export function parseFullZayafkaMessage(text: string): ErpOrder | null {
     // Birlikdan /nakladnoy komandalarini tozalash
     const unit     = itemMatch[4].trim().replace(/\/\w+/g, '').trim() || 'шт';
 
-    if (name && name.length > 1 && !isNaN(quantity)) {
-      items.push({ position, name, quantity, unit });
+    // Faqat haqiqiy tovar pozitsiyalarini qo'shish (izoh qatorlari emas)
+    if (name && name.length > 1 && !isNaN(quantity) && position > 0) {
+      // Agar nom faqat raqam yoki belgilardan iborat bo'lsa, o'tkazib yubor
+      if (!/^[\d\s.,]+$/.test(name)) {
+        items.push({ position, name, quantity, unit });
+      }
     }
   }
 
