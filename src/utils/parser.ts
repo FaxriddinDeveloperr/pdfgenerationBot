@@ -1,5 +1,16 @@
 import { ParsedZayafka, ErpOrder, ErpOrderItem } from '../types/erp.types';
 
+// Markdown belgilarini tozalash (**bold**, *italic*, __underline__)
+function cleanMarkdown(text: string): string {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold**
+    .replace(/\*([^*]+)\*/g, '$1')       // *italic*
+    .replace(/__([^_]+)__/g, '$1')       // __underline__
+    .replace(/_([^_]+)_/g, '$1')         // _italic_
+    .replace(/`([^`]+)`/g, '$1');        // `code`
+}
+
+
 // ============================================================
 // FORMAT 1 (O'zbek):
 // 🛒 Yangi sotuv! #SH-11965
@@ -71,7 +82,10 @@ export function parseZayafkaMessage(
 // ============================================================
 // TO'LIQ PARSE: O'zbek va Rus tillarini tushunadi
 // ============================================================
-export function parseFullZayafkaMessage(text: string): ErpOrder | null {
+export function parseFullZayafkaMessage(rawText: string): ErpOrder | null {
+  // Markdown belgilarini tozalaymiz (**bold** → bold)
+  const text = cleanMarkdown(rawText);
+
   // --- Buyurtma raqami ---
   const orderMatch =
     text.match(/отгрузка\s*!?\s*#(\d+)/i) ||
