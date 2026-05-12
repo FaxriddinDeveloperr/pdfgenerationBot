@@ -23,10 +23,12 @@
     "express": "^4.19.2",
     "grammy": "^1.31.0",
     "handlebars": "^4.7.8",
+    "input": "^1.0.1",
     "node-cron": "^3.0.3",
     "puppeteer": "^24.42.0",
     "qrcode": "^1.5.4",
     "sharp": "^0.33.4",
+    "telegram": "^2.26.22",
     "winston": "^3.13.0"
   },
   "devDependencies": {

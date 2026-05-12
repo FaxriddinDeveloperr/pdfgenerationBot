@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { createBot } from './bot';
 import { logger } from './utils/logger';
 import { closeBrowser } from './pdf/generator';
+import { startUserbot, stopUserbot } from './userbot/client';
+import { startUserbotListeners } from './userbot/listener';
 import fs from 'fs';
 
 // Papkalarni yaratish
@@ -33,10 +35,17 @@ async function main(): Promise<void> {
     logger.warn('⚠️ setMyCommands xato — internet yoq, otkazib yuborildi');
   }
 
+  // Userbotni ishga tushirish (agar sozlamalar bo'lsa)
+  const userbotClient = await startUserbot();
+  if (userbotClient) {
+    await startUserbotListeners(userbotClient);
+  }
+
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     logger.info(`⚠️ ${signal} signali qabul qilindi. Bot to'xtatilmoqda...`);
     await bot.stop();
+    await stopUserbot();
     await closeBrowser();
     logger.info('✅ Bot muvaffaqiyatli to\'xtatildi');
     process.exit(0);
