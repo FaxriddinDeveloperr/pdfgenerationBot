@@ -31,7 +31,8 @@ export function hasGarantCommand(text: string): boolean {
 export function isZayafkaMessage(text: string): boolean {
   const indicators = [
     /yangi\s+sotuv/i,
-    /нова[яа]\s+отгрузка/i,  // Новая отгрузка
+    /нова[яа]\s+отгрузка/i,   // Новая отгрузка
+    /изменена\s+отгрузка/i,  // Изменена отгрузка
     /новый\s+заказ/i,
     /закупка/i,               // Закупка
     /🛒/,
@@ -48,7 +49,7 @@ export function parseZayafkaMessage(
 ): ParsedZayafka | null {
   const orderPatterns = [
     /#(SH-\d+)/i,                          // #SH-11965
-    /отгрузка[^\n#]*#(\d+)/i,             // Новая отгрузка! #228
+    /отгрузка[!\s!]*#(\d+)/i,           // Новая отгрузка! #228 | Изменена отгрузка ! #279
     /sotuv[^\n#]*#([A-Z]{0,3}-?\d+)/i,   // Yangi sotuv! #SH-11965
     /#(\d{2,10})\b/,                        // #228, #11965 — 2 raqamdan boshlab
     /№\s*([A-Z0-9-]+)/i,
@@ -73,7 +74,7 @@ export function parseZayafkaMessage(
 export function parseFullZayafkaMessage(text: string): ErpOrder | null {
   // --- Buyurtma raqami ---
   const orderMatch =
-    text.match(/отгрузка[^\n#]*#(\d+)/i) ||
+    text.match(/отгрузка\s*!?\s*#(\d+)/i) ||
     text.match(/закупка[^\n#]*#(\d+)/i) ||
     text.match(/sotuv[^\n#]*#([A-Z]{0,3}-?\d+)/i) ||
     text.match(/#(SH-\d+)/i) ||
@@ -115,8 +116,8 @@ export function parseFullZayafkaMessage(text: string): ErpOrder | null {
 
   // --- Telefon ---
   const phoneMatch =
-    text.match(/📞\s*(?:Telefon|Телефон):\s*([^\n]+)/i) ||
-    text.match(/(?:Telefon|Телефон):\s*([^\n]+)/i);
+    text.match(/📞\s*(?:Telefon|Телефон|Номер клиента|Номер):\s*([^\n]+)/i) ||
+    text.match(/(?:Telefon|Телефон|Номер клиента):\s*([^\n]+)/i);
   const rawPhone = phoneMatch ? phoneMatch[1].trim() : '—';
   const clientPhone = rawPhone === '+' || rawPhone === '' ? '—' : rawPhone;
 
