@@ -1,13 +1,11 @@
 import { ParsedZayafka, ErpOrder, ErpOrderItem } from '../types/erp.types';
 
-// Markdown belgilarini tozalash (**bold**, *italic*, __underline__)
+// Markdown belgilarini tozalash — faqat **bold** va __underline__
+// Single * ga tegmaymiz! Chunki mahsulot nomlarida 1*6 mm kabi yozuvlar bor
 function cleanMarkdown(text: string): string {
   return text
-    .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold**
-    .replace(/\*([^*]+)\*/g, '$1')       // *italic*
-    .replace(/__([^_]+)__/g, '$1')       // __underline__
-    .replace(/_([^_]+)_/g, '$1')         // _italic_
-    .replace(/`([^`]+)`/g, '$1');        // `code`
+    .replace(/\*\*/g, '')   // ** belgilarini olib tashlaymiz
+    .replace(/__/g, '');    // __ belgilarini olib tashlaymiz
 }
 
 
