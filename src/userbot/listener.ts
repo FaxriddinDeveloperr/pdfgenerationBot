@@ -1,11 +1,8 @@
 import { TelegramClient } from 'telegram';
 import { NewMessage, NewMessageEvent } from 'telegram/events';
-import { Api } from 'telegram/tl';
 import { logger } from '../utils/logger';
-import { isZayafkaMessage, parseZayafkaMessage, parseFullZayafkaMessage, hasNakladnoyCommand } from '../utils/parser';
-import { generateZayafkaPdf, generateClientPdf, deletePdfFile } from '../pdf/generator';
-import { InputFile } from 'grammy';
-import fs from 'fs';
+import { isZayafkaMessage, parseZayafkaMessage, parseFullZayafkaMessage, isMoneyTransfer, parseMoneyTransfer } from '../utils/parser';
+import { generateZayafkaPdf, generateClientPdf, generateTransferPdf, deletePdfFile } from '../pdf/generator';
 import { Bot } from 'grammy';
 
 let gramMyBot: Bot | null = null;
@@ -32,21 +29,30 @@ export async function startUserbotListeners(client: TelegramClient): Promise<voi
       const messageId = message.id;
       const senderId = message.senderId?.toString() || '';
 
-      // O'zimizning Grammy botimizning xabarini e'tiborsiz qoldirish (loop oldini olish)
+      // O'zimizning Grammy botimizning xabarini e'tiborsiz qoldirish
       const ourBotId = process.env.BOT_TOKEN?.split(':')[0];
       if (senderId === ourBotId) return;
 
-      // Faqat kerakli guruhlarni kuzatish (agar belgilangan bo'lsa)
+      // Faqat kerakli guruhlarni kuzatish
       if (watchGroups.length > 0 && !watchGroups.includes(chatId) && !watchGroups.includes('-' + chatId)) {
         return;
       }
 
-      // Zayafka xabari emasmi?
+      // 1. Pul o'tkazmasi xabari?
+      if (isMoneyTransfer(text)) {
+        logger.info(`💰 Userbot pul o'tkazmasi xabarini ko'rdi (guruh: ${chatId})`);
+        const transfer = parseMoneyTransfer(text);
+        if (transfer) {
+          await sendTransferPdf(client, chatId, messageId, transfer);
+        }
+        return;
+      }
+
+      // 2. Zayafka xabari?
       if (!isZayafkaMessage(text)) return;
 
       logger.info(`🤖 Userbot zayafka xabarini ko'rdi (guruh: ${chatId}): ${text.slice(0, 60)}...`);
 
-      // Buyurtma raqamini topish
       const parsed = parseZayafkaMessage(text, messageId, chatId);
       if (!parsed) {
         logger.warn('Userbot: buyurtma raqami topilmadi');
@@ -54,8 +60,6 @@ export async function startUserbotListeners(client: TelegramClient): Promise<voi
       }
 
       logger.info(`✅ Userbot buyurtma raqamini topdi: ${parsed.orderNumber}`);
-
-      // PDF yaratish va guruhga yuborish
       await sendPdfToGroup(client, chatId, messageId, text, parsed.orderNumber);
 
     } catch (err) {
@@ -64,6 +68,39 @@ export async function startUserbotListeners(client: TelegramClient): Promise<voi
   }, new NewMessage({}));
 
   logger.info('✅ Userbot xabarlarni tinglash boshladi');
+}
+
+async function sendTransferPdf(
+  client: TelegramClient,
+  chatId: string,
+  replyToMsgId: number,
+  transfer: import('../types/erp.types').MoneyTransfer
+): Promise<void> {
+  const loadingMsg = await client.sendMessage(chatId, {
+    message: `⏳ Pul o'tkazmasi PDF tayyorlanmoqda...`,
+    replyTo: replyToMsgId,
+  });
+
+  try {
+    const pdfPath = await generateTransferPdf(transfer);
+
+    await client.sendFile(chatId, {
+      file: pdfPath,
+      caption: `💰 Pul o'tkazmasi\n📤 ${transfer.fromAccount}\n📥 ${transfer.toAccount}\n💵 ${Number(transfer.fromAmount).toLocaleString('ru-RU')} ${transfer.fromCurrency}`,
+      replyTo: replyToMsgId,
+    });
+
+    await client.deleteMessages(chatId, [loadingMsg.id], { revoke: true });
+    await deletePdfFile(pdfPath);
+
+    logger.info(`✅ Transfer PDF yuborildi`);
+  } catch (error) {
+    logger.error('❌ Transfer PDF xatosi:', error);
+    await client.editMessage(chatId, {
+      message: loadingMsg.id,
+      text: `❌ PDF yaratib bolmadi!\n\nAdmin bilan boglanang.`,
+    }).catch(() => {});
+  }
 }
 
 async function sendPdfToGroup(

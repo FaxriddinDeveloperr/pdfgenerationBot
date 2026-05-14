@@ -1,4 +1,4 @@
-import { ParsedZayafka, ErpOrder, ErpOrderItem } from '../types/erp.types';
+import { ParsedZayafka, ErpOrder, ErpOrderItem, MoneyTransfer } from '../types/erp.types';
 
 // Markdown belgilarini tozalash — faqat **bold** va __underline__
 // Single * ga tegmaymiz! Chunki mahsulot nomlarida 1*6 mm kabi yozuvlar bor
@@ -222,4 +222,47 @@ export function formatDateUz(date: Date): string {
 
 export function formatSum(amount: number, currency = 'UZS'): string {
   return `${amount.toLocaleString('ru-RU')} ${currency}`;
+}
+
+// ============================================================
+// PUL O'TKAZMASI (Перемещение денег)
+// ============================================================
+export function isMoneyTransfer(text: string): boolean {
+  return /перемещение\s+денег/i.test(text) || /💰/.test(text) && /перемещение/i.test(text);
+}
+
+export function parseMoneyTransfer(rawText: string): MoneyTransfer | null {
+  const text = cleanMarkdown(rawText);
+
+  // Sana
+  const dateMatch = text.match(/🗓\s*(?:Дата|Sana):\s*([\d.]+)/i) || text.match(/(?:Дата|Sana):\s*([\d.]+)/i);
+  const date = dateMatch ? dateMatch[1].trim() : new Date().toLocaleDateString('ru-RU');
+
+  // Hodim (kim amalga oshirdi)
+  const personMatch = text.match(/🙋[^\n]*\s+([^\n]+)/i);
+  const person = personMatch ? personMatch[1].trim() : '—';
+
+  // Chiquvchi hisob va miqdor: 🗃 Plastik kassa Iskandar aka (- 610000 UZS)
+  const fromMatch = text.match(/🗃\s*([^\n(]+?)\s*\(-\s*([\d\s.,]+)\s*([A-Z]+)\)/i);
+  const fromAccount = fromMatch ? fromMatch[1].trim() : '—';
+  const fromAmount  = fromMatch ? fromMatch[2].replace(/\s/g, '').trim() : '—';
+  const fromCurrency = fromMatch ? fromMatch[3].trim() : 'UZS';
+
+  // Kirishchi hisob va miqdor: 🗃 Umumiy kassa Shamsiddin (+ 610000 UZS)
+  const toMatch = text.match(/🗃\s*([^\n(]+?)\s*\(\+\s*([\d\s.,]+)\s*([A-Z]+)\)/i);
+  const toAccount  = toMatch ? toMatch[1].trim() : '—';
+  const toAmount   = toMatch ? toMatch[2].replace(/\s/g, '').trim() : '—';
+  const toCurrency = toMatch ? toMatch[3].trim() : 'UZS';
+
+  // Qoldiq: ➡️ Остаток ... : 0 USD, 88 676 587 UZS
+  const remainingMatch = text.match(/➡️[^\n]*Остаток[^:]*:\s*([^\n]+)/i);
+  const remainingBalance = remainingMatch ? remainingMatch[1].trim() : undefined;
+
+  // Izoh
+  const notesMatch = text.match(/💬\s*([^\n]+(?:\n[^\n🗃➡️💳]+)*)/i);
+  const notes = notesMatch ? notesMatch[1].trim() : undefined;
+
+  if (!fromAccount && !toAccount) return null;
+
+  return { date, person, fromAccount, fromAmount, fromCurrency, toAccount, toAmount, toCurrency, remainingBalance, notes };
 }

@@ -1,56 +1,58 @@
 // ERP API dan kelgan buyurtma strukturasi
 export interface ErpOrder {
-  id: string;              // SH-11965
+  id: string;
   orderNumber: string;
-  status: string;          // Yangi | Jarayonda | Bajarildi
-  date: string;            // 25.04.2026
-  
-  // Xodimlar
-  createdBy: string;       // Zavqiddin Lutfulloyev
-  createdByRole: string;   // FES menejer
+  status: string;
+  date: string;
+  createdBy: string;
+  createdByRole: string;
   managerId: string;
   managerName: string;
   managerRole: string;
-  
-  // Mijoz
   client: {
     id: string;
-    name: string;          // ZV Jonibek aka shaxrisabz 1302
-    phone: string;         // +998909741302
+    name: string;
+    phone: string;
     address?: string;
   };
-  
-  // Ombor
-  warehouse: string;       // Ark-buloq 4-a dukon
-  
-  // Tovarlar
+  warehouse: string;
   items: ErpOrderItem[];
-  
-  // Qo'shimcha
   notes?: string;
-  deliveryType?: string;   // yandex | pickup | courier
+  deliveryType?: string;
   totalAmount?: number;
-  currency?: string;        // UZS | USD | RUB
+  currency?: string;
 }
 
-
 export interface ErpOrderItem {
-  position: number;        // #1
-  name: string;            // Era Solar 625 W
-  quantity: number;        // 8
-  unit: string;            // шт
+  position: number;
+  name: string;
+  quantity: number;
+  unit: string;
   price?: number;
   total?: number;
   category?: string;
   serialNumbers?: string[];
-  warrantyMonths?: number; // Kafolat muddati (oyda)
+  warrantyMonths?: number;
 }
 
-// Parsed zayafka (Telegram xabaridan)
 export interface ParsedZayafka {
-  orderNumber: string;     // SH-11965
+  orderNumber: string;
   rawMessage: string;
   messageId: number;
   chatId: string;
   fromUserId?: string;
+}
+
+// Pul o'tkazmasi strukturasi
+export interface MoneyTransfer {
+  date: string;
+  person: string;
+  fromAccount: string;
+  fromAmount: string;
+  fromCurrency: string;
+  toAccount: string;
+  toAmount: string;
+  toCurrency: string;
+  remainingBalance?: string;
+  notes?: string;
 }

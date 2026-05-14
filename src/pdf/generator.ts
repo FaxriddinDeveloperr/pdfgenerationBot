@@ -6,7 +6,7 @@ import QRCode from 'qrcode';
 import dayjs from 'dayjs';
 import { config } from '../config/env';
 import { logger } from '../utils/logger';
-import { ErpOrder } from '../types/erp.types';
+import { ErpOrder, MoneyTransfer } from '../types/erp.types';
 import { parseFullZayafkaMessage } from '../utils/parser';
 
 // Handlebars helperlar
@@ -429,5 +429,64 @@ export async function closeBrowser(): Promise<void> {
   if (browser) {
     await browser.close();
     browser = null;
+  }
+}
+
+// ===========================
+// PUL O'TKAZMASI PDF
+// ===========================
+export async function generateTransferPdf(transfer: MoneyTransfer): Promise<string> {
+  ensureOutputDir();
+
+  const templatePath = path.join(__dirname, 'templates', 'transfer.html');
+  const templateHtml = fs.readFileSync(templatePath, 'utf-8');
+  const template = Handlebars.compile(templateHtml);
+
+  // Logo
+  let logoBase64 = '';
+  try {
+    if (fs.existsSync(config.pdf.logoPath)) {
+      const logoBuffer = fs.readFileSync(config.pdf.logoPath);
+      logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    }
+  } catch { /* logo yuq bo'lsa ham davom et */ }
+
+  const data = {
+    companyName:    config.company.name,
+    companyWebsite: config.company.website,
+    companyPhone:   config.company.phone,
+    companyPhone2:  config.company.phone2,
+    logoBase64,
+    date:              transfer.date,
+    person:            transfer.person,
+    fromAccount:       transfer.fromAccount,
+    fromAmount:        Number(transfer.fromAmount).toLocaleString('ru-RU'),
+    fromCurrency:      transfer.fromCurrency,
+    toAccount:         transfer.toAccount,
+    toAmount:          Number(transfer.toAmount).toLocaleString('ru-RU'),
+    toCurrency:        transfer.toCurrency,
+    remainingBalance:  transfer.remainingBalance,
+    notes:             transfer.notes,
+  };
+
+  const html = template(data);
+  const timestamp = Date.now();
+  const filePath = path.join(config.pdf.outputDir, `transfer_${timestamp}.pdf`);
+
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+
+  try {
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.pdf({
+      path: filePath,
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
+    });
+    logger.info(`✅ Transfer PDF yaratildi: ${filePath}`);
+    return filePath;
+  } finally {
+    await page.close();
   }
 }
