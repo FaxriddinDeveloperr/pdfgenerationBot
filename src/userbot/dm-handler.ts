@@ -3,28 +3,15 @@ import { NewMessage, NewMessageEvent } from 'telegram/events';
 import { Api } from 'telegram/tl';
 import { logger } from '../utils/logger';
 import {
-  addGroup,
-  removeGroup,
-  listGroups,
-  saveAd,
-  getAdInfo,
-  addTime,
-  removeTime,
-  listTimes,
-  getStatus,
-  sendBroadcast,
-  restartScheduler,
-  readConfig,
+  addGroup, removeGroup, listGroups,
+  addAd, removeAd, clearAds, listAds,
+  addTime, removeTime, listTimes,
+  getStatus, sendBroadcast, restartScheduler, readConfig,
 } from './broadcast';
 
-// ============================================================
-// Kutish holati — /setad bosilgandan keyin keyingi xabar reklama
-// ============================================================
+// /setad bosilgandan keyin keyingi xabar reklama bo'ladi
 let waitingForAd = false;
 
-// ============================================================
-// DM handler — faqat egasi yuborgan buyruqlarni ishlaydi
-// ============================================================
 export async function startDmHandler(client: TelegramClient): Promise<void> {
   const ownerId = process.env.BROADCAST_OWNER_ID || readConfig().ownerId;
 
@@ -33,275 +20,231 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
       const message = event.message;
       if (!message) return;
 
-      // Faqat shaxsiy xabarlar (guruh emas)
-      const isPrivate = message.isPrivate;
-      if (!isPrivate) return;
+      // Faqat shaxsiy xabarlar (DM)
+      if (!message.isPrivate) return;
 
       // Faqat egasidan
       const senderId = message.senderId?.toString();
       if (senderId !== ownerId) return;
 
-      const text = message.text || '';
+      const text = (message.text || '').trim();
 
-      // --------------------------------------------------------
-      // REJIM: /setad kutilmoqda — keyingi xabar reklama bo'ladi
-      // --------------------------------------------------------
+      // ── /setad rejimi: keyingi xabar reklama ──────────────
       if (waitingForAd) {
         waitingForAd = false;
 
-        const msgId  = message.id;
-        const chatId = senderId;  // DM chat eganing o'zi
+        // /cancelad matni yuborilgan bo'lsa — bekor qilish
+        if (text === '/cancelad') {
+          await reply(client, ownerId, '✅ Bekor qilindi.');
+          return;
+        }
 
-        // Media turini aniqlash
+        const msgId = message.id;
+        const chatId = senderId;
+
         let mediaType = 'text';
-        if (message.photo)       mediaType = 'photo';
-        else if (message.video)  mediaType = 'video';
-        else if (message.voice)  mediaType = 'voice';
+        if (message.photo)          mediaType = 'photo';
+        else if (message.video)     mediaType = 'video';
+        else if (message.voice)     mediaType = 'voice';
         else if (message.videoNote) mediaType = 'video_note';
         else if (message.document)  mediaType = 'document';
 
-        saveAd(msgId, chatId, mediaType);
-        logger.info(`📢 Reklama saqlandi: type=${mediaType}, msgId=${msgId}`);
+        const ad = addAd(msgId, chatId, mediaType);
+        logger.info(`📢 Reklama qo'shildi: #${ad.id} type=${mediaType}`);
 
-        await client.sendMessage(senderId, {
-          message: `✅ Reklama saqlandi!\n\nTur: *${mediaType}*\nXabar ID: \`${msgId}\`\n\n/sendnow bilan hoziroq yuborib ko'ring!`,
-          parseMode: 'markdown',
-          replyTo: msgId,
-        });
+        await reply(client, ownerId,
+          `✅ Reklama qo'shildi!\n\n` +
+          `🔢 Tartib raqami: *${ad.id}*\n` +
+          `📁 Tur: ${mediaType}\n\n` +
+          `Jami reklamalar: ${readConfig().ads.length} ta\n` +
+          `/listads — ro'yxatni ko'rish\n` +
+          `/setad — yana reklama qo'shish`,
+          true
+        );
         return;
       }
 
-      // --------------------------------------------------------
-      // Matn buyruqlarini parse qilish
-      // --------------------------------------------------------
-      const cmd = text.trim().split(' ')[0].toLowerCase();
-      const args = text.trim().slice(cmd.length).trim();
+      // ── Buyruqlarni parse qilish ───────────────────────────
+      const spaceIdx = text.indexOf(' ');
+      const cmd  = (spaceIdx === -1 ? text : text.slice(0, spaceIdx)).toLowerCase();
+      const args = spaceIdx === -1 ? '' : text.slice(spaceIdx + 1).trim();
 
       switch (cmd) {
 
-        // ── GURUH QO'SHISH (avtomatik qo'shilish bilan) ────
+        // ━━━━ GURUH BOSHQARISH ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
         case '/addgroup': {
           if (!args) {
             await reply(client, ownerId,
-              '❌ Guruh linkini kiriting.\nMasalan:\n' +
-              '/addgroup https://t.me/mygroupname\n' +
+              '❌ Link kiriting:\n' +
+              '/addgroup https://t.me/username\n' +
               '/addgroup https://t.me/+InviteHash'
             );
-            return;
+            break;
           }
 
           await reply(client, ownerId, '⏳ Guruhga qo\'shilmoqda...');
 
           try {
-            const rawLink = args.trim();
-            const link = rawLink.replace('https://', '').replace('http://', '').trim();
-
+            const rawLink = args;
+            const link = rawLink.replace('https://', '').replace('http://', '');
+            const isInvite = link.includes('/+') || link.includes('joinchat/');
             let entity: any;
 
-            // Maxfiy (invite) link: t.me/+XYZ yoki t.me/joinchat/XYZ
-            const isInvite = link.includes('/+') || link.includes('joinchat/');
-
             if (isInvite) {
-              // Invite hash ajratib olish
-              const hash = link.split('/+').pop()?.split('/joinchat/').pop() || link;
+              const hash = link.split('/+').pop()?.replace('joinchat/', '') || link;
               try {
-                // Guruhga qo'shilish
                 await client.invoke(new Api.messages.ImportChatInvite({ hash }));
-                logger.info(`✅ Invite link orqali qo'shildi: ${hash}`);
-              } catch (joinErr: any) {
-                // Already in chat — xato emas
-                if (!joinErr?.message?.includes('ALREADY')) {
-                  throw joinErr;
-                }
+              } catch (e: any) {
+                if (!e?.message?.includes('ALREADY')) throw e;
               }
-              // Entity olish
-              entity = await client.getEntity(link).catch(async () => {
-                // Ba'zan to'g'ri olishga vaqt kerak
-                await new Promise(r => setTimeout(r, 2000));
-                return await client.getEntity(hash);
-              });
+              await new Promise(r => setTimeout(r, 1500));
+              entity = await client.getEntity(link).catch(() => client.getEntity(hash));
             } else {
-              // Ochiq guruh/kanal: @username yoki t.me/username
               const username = link.replace('t.me/', '').split('/')[0];
               try {
-                await client.invoke(new Api.channels.JoinChannel({
-                  channel: username,
-                }));
-                logger.info(`✅ Ochiq guruhga qo'shildi: ${username}`);
-              } catch (joinErr: any) {
-                if (!joinErr?.message?.includes('ALREADY')) {
-                  throw joinErr;
-                }
+                await client.invoke(new Api.channels.JoinChannel({ channel: username }));
+              } catch (e: any) {
+                if (!e?.message?.includes('ALREADY')) throw e;
               }
               entity = await client.getEntity(username);
             }
 
-            const groupId    = entity.id?.toString() || '';
-            const groupTitle = entity.title || entity.username || rawLink;
-            const fullId     = groupId.startsWith('-') ? groupId : `-100${groupId}`;
+            const gId    = entity.id?.toString() || '';
+            const title  = entity.title || entity.username || rawLink;
+            const fullId = gId.startsWith('-') ? gId : `-100${gId}`;
 
-            const result = addGroup({ id: fullId, title: groupTitle, link: rawLink });
+            const res = addGroup({ id: fullId, title, link: rawLink });
             await reply(client, ownerId,
-              `✅ Muvaffaqiyatli!\n\n` +
-              `👥 Guruh: *${groupTitle}*\n` +
-              `🆔 ID: \`${fullId}\`\n\n` +
-              (result.success ? '💾 Ro\'yxatga saqlandi.' : result.message),
+              `✅ Muvaffaqiyatli!\n\n👥 *${title}*\n🆔 \`${fullId}\`\n\n` +
+              (res.success ? '💾 Saqlandi.' : res.message),
               true
             );
           } catch (err: any) {
-            logger.error('addgroup xato:', err);
-            const msg = err?.message || String(err);
             await reply(client, ownerId,
-              `❌ Guruhga qo'shilishda xato:\n${msg}\n\n` +
-              `Tekshiring:\n` +
-              `• Guruh public bo'lsa: /addgroup https://t.me/username\n` +
-              `• Guruh private bo'lsa: /addgroup https://t.me/+InviteHash`
+              `❌ Xato: ${err?.message || err}\n\n` +
+              `• Ochiq guruh: /addgroup https://t.me/username\n` +
+              `• Yopiq guruh: /addgroup https://t.me/+InviteHash`
             );
           }
           break;
         }
 
-        // ── GURUH O'CHIRISH ─────────────────────────────────
         case '/removegroup': {
-          const num = parseInt(args);
-          if (isNaN(num)) {
-            await reply(client, ownerId, '❌ Raqam kiriting.\nMasalan: /removegroup 1');
-            return;
-          }
-          const result = removeGroup(num);
-          await reply(client, ownerId, result.message);
+          const n = parseInt(args);
+          if (isNaN(n)) { await reply(client, ownerId, '❌ Raqam kiriting: /removegroup 1'); break; }
+          const res = removeGroup(n);
+          await reply(client, ownerId, res.message);
           break;
         }
 
-        // ── GURUHLAR RO'YXATI ───────────────────────────────
-        case '/listgroups': {
-          await reply(client, ownerId, listGroups());
+        case '/listgroups':
+          await reply(client, ownerId, listGroups(), true);
           break;
-        }
 
-        // ── REKLAMA O'RNATISH ───────────────────────────────
+        // ━━━━ REKLAMA BOSHQARISH ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
         case '/setad': {
           waitingForAd = true;
           await reply(client, ownerId,
             '📢 Reklama xabarini yuboring!\n\n' +
-            'Quyidagi turlardan birini yuborishingiz mumkin:\n' +
-            '• Matn\n• Rasm + caption\n• Video + caption\n• Ovozli xabar\n• Doiraviy video\n\n' +
-            '⚠️ Bekor qilish uchun /cancelad yuboring.'
+            'Qo\'llab-quvvatlanadi:\n' +
+            '• Matn\n• 🖼 Rasm + caption\n• 🎥 Video + caption\n• 🎵 Ovozli xabar\n• ⭕ Doiraviy video\n\n' +
+            'Bekor qilish uchun /cancelad yuboring.'
           );
           break;
         }
 
-        // ── REKLAMANI BEKOR QILISH ──────────────────────────
         case '/cancelad': {
           waitingForAd = false;
-          await reply(client, ownerId, '✅ Reklama o\'rnatish bekor qilindi.');
+          await reply(client, ownerId, '✅ Bekor qilindi.');
           break;
         }
 
-        // ── REKLAMANI KO'RISH ───────────────────────────────
+        case '/listads':
+          await reply(client, ownerId, listAds(), true);
+          break;
+
         case '/showad': {
           const config = readConfig();
-          if (!config.adMessageId || !config.adChatId) {
-            await reply(client, ownerId, '📭 Reklama o\'rnatilmagan.');
-            return;
-          }
-          // Reklamani egaga forward qilib ko'rsatish
+          const n = parseInt(args);
+          const idx = isNaN(n) ? 0 : n - 1;
+          if (!config.ads.length) { await reply(client, ownerId, '📭 Reklamalar yo\'q.'); break; }
+          const ad = config.ads[idx];
+          if (!ad) { await reply(client, ownerId, `❌ ${n}-reklama topilmadi.`); break; }
           try {
-            await client.forwardMessages(ownerId, {
-              messages: [config.adMessageId],
-              fromPeer: config.adChatId,
-            });
-            await reply(client, ownerId, `ℹ️ Yuqoridagi xabar — hozirgi reklama.\nTur: ${config.adMediaType}`);
+            await client.forwardMessages(ownerId, { messages: [ad.messageId], fromPeer: ad.chatId });
+            await reply(client, ownerId, `ℹ️ Reklama #${idx + 1} (tur: ${ad.mediaType})`);
           } catch {
-            await reply(client, ownerId, getAdInfo());
+            await reply(client, ownerId, `ID: ${ad.id} | Tur: ${ad.mediaType}`);
           }
           break;
         }
 
-        // ── VAQT QO'SHISH ───────────────────────────────────
+        case '/removead': {
+          const n = parseInt(args);
+          if (isNaN(n)) { await reply(client, ownerId, '❌ Raqam kiriting: /removead 1'); break; }
+          const res = removeAd(n);
+          await reply(client, ownerId, res.message);
+          break;
+        }
+
+        case '/clearads': {
+          clearAds();
+          await reply(client, ownerId, '✅ Barcha reklamalar o\'chirildi.');
+          break;
+        }
+
+        // ━━━━ VAQT BOSHQARISH ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
         case '/addtime': {
-          if (!args) {
-            await reply(client, ownerId, '❌ Vaqtni kiriting.\nMasalan: /addtime 09:10');
-            return;
-          }
-          const result = addTime(args.trim());
-          await reply(client, ownerId, result.message);
-          if (result.success) {
-            restartScheduler(client);
-            await reply(client, ownerId, '🔄 Scheduler yangilandi.');
-          }
+          if (!args) { await reply(client, ownerId, '❌ Masalan: /addtime 09:10'); break; }
+          const res = addTime(args);
+          await reply(client, ownerId, res.message);
+          if (res.success) { restartScheduler(client); await reply(client, ownerId, '🔄 Scheduler yangilandi.'); }
           break;
         }
 
-        // ── VAQT O'CHIRISH ──────────────────────────────────
         case '/removetime': {
-          if (!args) {
-            await reply(client, ownerId, '❌ Vaqtni kiriting.\nMasalan: /removetime 14:00');
-            return;
-          }
-          const result = removeTime(args.trim());
-          await reply(client, ownerId, result.message);
-          if (result.success) {
-            restartScheduler(client);
-            await reply(client, ownerId, '🔄 Scheduler yangilandi.');
-          }
+          if (!args) { await reply(client, ownerId, '❌ Masalan: /removetime 14:00'); break; }
+          const res = removeTime(args);
+          await reply(client, ownerId, res.message);
+          if (res.success) { restartScheduler(client); await reply(client, ownerId, '🔄 Scheduler yangilandi.'); }
           break;
         }
 
-        // ── VAQTLAR RO'YXATI ────────────────────────────────
-        case '/listtimes': {
+        case '/listtimes':
           await reply(client, ownerId, listTimes());
           break;
-        }
 
-        // ── HOZIROQ YUBORISH ────────────────────────────────
+        // ━━━━ YUBORISH VA STATUS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
         case '/sendnow': {
           const config = readConfig();
-          if (!config.adMessageId) {
-            await reply(client, ownerId, '❌ Avval reklama o\'rnating: /setad');
-            return;
-          }
-          if (config.groups.length === 0) {
-            await reply(client, ownerId, '❌ Avval guruh qo\'shing: /addgroup <link>');
-            return;
-          }
-          await reply(client, ownerId, `⏳ ${config.groups.length} ta guruhga yuborilmoqda...`);
+          if (!config.ads.length) { await reply(client, ownerId, '❌ Reklama yo\'q: /setad'); break; }
+          if (!config.groups.length) { await reply(client, ownerId, '❌ Guruh yo\'q: /addgroup <link>'); break; }
+          await reply(client, ownerId,
+            `⏳ Yuborilmoqda...\n📢 ${config.ads.length} reklama × 👥 ${config.groups.length} guruh`
+          );
           await sendBroadcast(client);
-          await reply(client, ownerId, '✅ Yuborish yakunlandi! Loglarni tekshiring.');
+          await reply(client, ownerId, '✅ Yakunlandi!');
           break;
         }
 
-        // ── STATUS ──────────────────────────────────────────
-        case '/status': {
+        case '/status':
           await reply(client, ownerId, getStatus(), true);
           break;
-        }
 
-        // ── YORDAM ──────────────────────────────────────────
         case '/help':
-        case '/start': {
-          await reply(client, ownerId,
-            '👋 Broadcast boshqaruv paneli\n\n' +
-            '/status — umumiy holat\n' +
-            '/addgroup <link> — guruh qo\'shish\n' +
-            '/removegroup <N> — guruh o\'chirish\n' +
-            '/listgroups — guruhlar ro\'yxati\n' +
-            '/setad — reklama o\'rnatish\n' +
-            '/showad — reklamani ko\'rish\n' +
-            '/addtime HH:MM — vaqt qo\'shish\n' +
-            '/removetime HH:MM — vaqt o\'chirish\n' +
-            '/listtimes — vaqtlar ro\'yxati\n' +
-            '/sendnow — hoziroq yuborish',
-            true
-          );
+        case '/start':
+          await reply(client, ownerId, getStatus(), true);
           break;
-        }
 
-        default: {
-          // Buyruq emas, oddiy xabar — e'tiborsiz qoldirish
+        default:
+          // Oddiy xabar — e'tiborsiz
           break;
-        }
       }
+
     } catch (err) {
       logger.error('DM handler xatosi:', err);
     }
@@ -310,21 +253,10 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
   logger.info(`✅ DM handler ishga tushdi (egasi: ${ownerId})`);
 }
 
-// ============================================================
-// Yordamchi — xabar yuborish
-// ============================================================
-async function reply(
-  client: TelegramClient,
-  toId: string,
-  message: string,
-  markdown = false
-): Promise<void> {
+async function reply(client: TelegramClient, toId: string, message: string, markdown = false): Promise<void> {
   try {
-    await client.sendMessage(toId, {
-      message,
-      parseMode: markdown ? 'markdown' : undefined,
-    });
+    await client.sendMessage(toId, { message, parseMode: markdown ? 'markdown' : undefined });
   } catch (err) {
-    logger.error('DM javob yuborishda xato:', err);
+    logger.error('DM reply xatosi:', err);
   }
 }

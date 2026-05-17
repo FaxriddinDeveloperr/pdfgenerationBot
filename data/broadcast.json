@@ -1,8 +1,6 @@
 {
   "groups": [],
-  "adMessageId": null,
-  "adChatId": null,
-  "adMediaType": null,
+  "ads": [],
   "times": ["09:10", "14:00"],
   "ownerId": "5944670152"
 }
