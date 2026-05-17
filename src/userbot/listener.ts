@@ -3,13 +3,9 @@ import { NewMessage, NewMessageEvent } from 'telegram/events';
 import { logger } from '../utils/logger';
 import { isZayafkaMessage, parseZayafkaMessage, parseFullZayafkaMessage, isMoneyTransfer, parseMoneyTransfer } from '../utils/parser';
 import { generateZayafkaPdf, generateClientPdf, generateTransferPdf, deletePdfFile } from '../pdf/generator';
-import { Bot } from 'grammy';
+import { MoneyTransfer } from '../types/erp.types';
 
-let gramMyBot: Bot | null = null;
 
-export function setGrammyBot(bot: Bot) {
-  gramMyBot = bot;
-}
 
 export async function startUserbotListeners(client: TelegramClient): Promise<void> {
   const watchGroups = (process.env.WATCH_GROUP_IDS || '')
@@ -74,7 +70,7 @@ async function sendTransferPdf(
   client: TelegramClient,
   chatId: string,
   replyToMsgId: number,
-  transfer: import('../types/erp.types').MoneyTransfer
+  transfer: MoneyTransfer
 ): Promise<void> {
   const loadingMsg = await client.sendMessage(chatId, {
     message: `⏳ Pul o'tkazmasi PDF tayyorlanmoqda...`,
