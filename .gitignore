@@ -7,3 +7,5 @@ logs/
 .DS_Store
 *.pdf
 assets/logo.png
+# Serverda saqlanadigan ma'lumotlar fayli (git bilan almashilmaydi)
+data/broadcast.json
