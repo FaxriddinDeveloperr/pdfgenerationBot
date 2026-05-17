@@ -184,29 +184,70 @@ export function listTimes(): string {
 }
 
 // ============================================================
-// STATUS
+// STATUS — professional format
 // ============================================================
 export function getStatus(): string {
   const config = readConfig();
+
+  const groupStatus  = config.groups.length > 0
+    ? `✅ ${config.groups.length} ta guruh`
+    : `❌ Guruh yo'q`;
+
+  const adStatus = config.ads.length > 0
+    ? `✅ ${config.ads.length} ta reklama`
+    : `❌ Reklama yo'q`;
+
+  const timeStatus = config.times.length > 0
+    ? config.times.map(t => `🕐 ${t}`).join('   ')
+    : `❌ Belgilanmagan`;
+
   return (
-    `📊 *Broadcast tizimi holati*\n\n` +
-    `👥 Guruhlar: ${config.groups.length} ta\n` +
-    `📢 Reklamalar: ${config.ads.length} ta\n` +
-    `🕐 Vaqtlar: ${config.times.length > 0 ? config.times.join(', ') : 'Belgilanmagan'}\n\n` +
-    `*Buyruqlar:*\n` +
-    `/addgroup <link> — guruh qo'shish\n` +
-    `/removegroup <N> — guruh o'chirish\n` +
-    `/listgroups — guruhlar ro'yxati\n` +
-    `/setad — reklama qo'shish\n` +
-    `/listads — reklamalar ro'yxati\n` +
-    `/showad <N> — reklamani ko'rish\n` +
-    `/removead <N> — reklamani o'chirish\n` +
-    `/clearads — hammani o'chirish\n` +
-    `/addtime HH:MM — vaqt qo'shish\n` +
-    `/removetime HH:MM — vaqt o'chirish\n` +
-    `/listtimes — vaqtlar\n` +
-    `/sendnow — hoziroq yuborish\n` +
-    `/status — holat`
+    `╔══════════════════════╗\n` +
+    `║  📡  BROADCAST PANEL  ║\n` +
+    `╚══════════════════════╝\n\n` +
+
+    `━━━ 📊 Holat ━━━━━━━━━━━━━\n` +
+    `👥 Guruhlar:   ${groupStatus}\n` +
+    `📢 Reklamalar: ${adStatus}\n` +
+    `⏰ Jadval:     ${timeStatus}\n\n` +
+
+    `━━━ 👥 Guruhlar ━━━━━━━━━━\n` +
+    `/addgroup <link>   — qo'shish\n` +
+    `/listgroups        — ro'yxat\n` +
+    `/removegroup <N>   — o'chirish\n\n` +
+
+    `━━━ 📢 Reklamalar ━━━━━━━━\n` +
+    `/setad             — qo'shish\n` +
+    `/listads           — ro'yxat\n` +
+    `/showad <N>        — ko'rish\n` +
+    `/removead <N>      — o'chirish\n` +
+    `/clearads          — hammasini o'chirish\n\n` +
+
+    `━━━ ⏰ Jadval ━━━━━━━━━━━━\n` +
+    `/addtime HH:MM     — vaqt qo'shish\n` +
+    `/removetime HH:MM  — vaqt o'chirish\n` +
+    `/listtimes         — vaqtlar\n\n` +
+
+    `━━━ 🚀 Boshqaruv ━━━━━━━━━\n` +
+    `/sendnow           — hoziroq yuborish\n` +
+    `/status            — bu panel`
+  );
+}
+
+export function getHelp(): string {
+  return (
+    `╔══════════════════════╗\n` +
+    `║  📡  BROADCAST PANEL  ║\n` +
+    `╚══════════════════════╝\n\n` +
+    `Guruh qo'shish:\n` +
+    `  /addgroup https://t.me/username\n` +
+    `  /addgroup https://t.me/+InviteHash\n\n` +
+    `Reklama qo'shish:\n` +
+    `  /setad  → keyin xabar yuboring\n\n` +
+    `Test yuborish:\n` +
+    `  /sendnow\n\n` +
+    `To'liq panel:\n` +
+    `  /status`
   );
 }
 

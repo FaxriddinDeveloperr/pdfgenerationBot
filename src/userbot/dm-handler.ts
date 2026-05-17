@@ -6,7 +6,7 @@ import {
   addGroup, removeGroup, listGroups,
   addAd, removeAd, clearAds, listAds,
   addTime, removeTime, listTimes,
-  getStatus, sendBroadcast, restartScheduler, readConfig,
+  getStatus, getHelp, sendBroadcast, restartScheduler, readConfig,
 } from './broadcast';
 
 // /setad bosilgandan keyin keyingi xabar reklama bo'ladi
@@ -237,7 +237,7 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
 
         case '/help':
         case '/start':
-          await reply(client, ownerId, getStatus(), true);
+          await reply(client, ownerId, getHelp());
           break;
 
         default:
