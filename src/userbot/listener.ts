@@ -4,10 +4,16 @@ import { logger } from '../utils/logger';
 import { isZayafkaMessage, parseZayafkaMessage, parseFullZayafkaMessage, isMoneyTransfer, parseMoneyTransfer } from '../utils/parser';
 import { generateZayafkaPdf, generateClientPdf, generateTransferPdf, deletePdfFile } from '../pdf/generator';
 import { MoneyTransfer } from '../types/erp.types';
-
-
+import { startDmHandler } from './dm-handler';
+import { startScheduler } from './broadcast';
 
 export async function startUserbotListeners(client: TelegramClient): Promise<void> {
+  // DM buyruqlari handler (broadcast boshqarish)
+  await startDmHandler(client);
+
+  // Broadcast scheduler (avtomatik yuborish)
+  startScheduler(client);
+
   const watchGroups = (process.env.WATCH_GROUP_IDS || '')
     .split(',')
     .map(id => id.trim())
