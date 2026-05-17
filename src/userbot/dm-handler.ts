@@ -79,30 +79,84 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
 
       switch (cmd) {
 
-        // ── GURUH QO'SHISH ──────────────────────────────────
+        // ── GURUH QO'SHISH (avtomatik qo'shilish bilan) ────
         case '/addgroup': {
           if (!args) {
-            await reply(client, ownerId, '❌ Guruh linkini kiriting.\nMasalan: /addgroup https://t.me/mygroupname');
+            await reply(client, ownerId,
+              '❌ Guruh linkini kiriting.\nMasalan:\n' +
+              '/addgroup https://t.me/mygroupname\n' +
+              '/addgroup https://t.me/+InviteHash'
+            );
             return;
           }
 
-          await reply(client, ownerId, '⏳ Guruh ma\'lumotlari olinmoqda...');
+          await reply(client, ownerId, '⏳ Guruhga qo\'shilmoqda...');
 
           try {
-            // t.me/... yoki @username formatlarini qo'llab-quvvatlash
-            const link = args.replace('https://', '').replace('http://', '').trim();
-            const entity = await client.getEntity(link) as any;
+            const rawLink = args.trim();
+            const link = rawLink.replace('https://', '').replace('http://', '').trim();
 
-            const groupId   = entity.id?.toString() || '';
-            const groupTitle = entity.title || entity.username || link;
-            // Kanallar uchun ID -100 bilan boshlanadi
-            const fullId = groupId.startsWith('-') ? groupId : `-100${groupId}`;
+            let entity: any;
 
-            const result = addGroup({ id: fullId, title: groupTitle, link: args });
-            await reply(client, ownerId, result.message);
+            // Maxfiy (invite) link: t.me/+XYZ yoki t.me/joinchat/XYZ
+            const isInvite = link.includes('/+') || link.includes('joinchat/');
+
+            if (isInvite) {
+              // Invite hash ajratib olish
+              const hash = link.split('/+').pop()?.split('/joinchat/').pop() || link;
+              try {
+                // Guruhga qo'shilish
+                await client.invoke(new Api.messages.ImportChatInvite({ hash }));
+                logger.info(`✅ Invite link orqali qo'shildi: ${hash}`);
+              } catch (joinErr: any) {
+                // Already in chat — xato emas
+                if (!joinErr?.message?.includes('ALREADY')) {
+                  throw joinErr;
+                }
+              }
+              // Entity olish
+              entity = await client.getEntity(link).catch(async () => {
+                // Ba'zan to'g'ri olishga vaqt kerak
+                await new Promise(r => setTimeout(r, 2000));
+                return await client.getEntity(hash);
+              });
+            } else {
+              // Ochiq guruh/kanal: @username yoki t.me/username
+              const username = link.replace('t.me/', '').split('/')[0];
+              try {
+                await client.invoke(new Api.channels.JoinChannel({
+                  channel: username,
+                }));
+                logger.info(`✅ Ochiq guruhga qo'shildi: ${username}`);
+              } catch (joinErr: any) {
+                if (!joinErr?.message?.includes('ALREADY')) {
+                  throw joinErr;
+                }
+              }
+              entity = await client.getEntity(username);
+            }
+
+            const groupId    = entity.id?.toString() || '';
+            const groupTitle = entity.title || entity.username || rawLink;
+            const fullId     = groupId.startsWith('-') ? groupId : `-100${groupId}`;
+
+            const result = addGroup({ id: fullId, title: groupTitle, link: rawLink });
+            await reply(client, ownerId,
+              `✅ Muvaffaqiyatli!\n\n` +
+              `👥 Guruh: *${groupTitle}*\n` +
+              `🆔 ID: \`${fullId}\`\n\n` +
+              (result.success ? '💾 Ro\'yxatga saqlandi.' : result.message),
+              true
+            );
           } catch (err: any) {
             logger.error('addgroup xato:', err);
-            await reply(client, ownerId, `❌ Guruhni topib bo'lmadi.\nXato: ${err?.message || err}\n\nGuruh username yoki linkini to'g'ri kiriting.`);
+            const msg = err?.message || String(err);
+            await reply(client, ownerId,
+              `❌ Guruhga qo'shilishda xato:\n${msg}\n\n` +
+              `Tekshiring:\n` +
+              `• Guruh public bo'lsa: /addgroup https://t.me/username\n` +
+              `• Guruh private bo'lsa: /addgroup https://t.me/+InviteHash`
+            );
           }
           break;
         }
