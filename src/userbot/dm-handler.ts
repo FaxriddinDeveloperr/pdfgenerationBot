@@ -86,37 +86,9 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
           await reply(client, senderId, '⏳ Guruhga qo\'shilmoqda...');
 
           try {
-            const rawLink = args;
-            const link = rawLink.replace('https://', '').replace('http://', '');
-            const isInvite = link.includes('/+') || link.includes('joinchat/');
-            let entity: any;
-
-            if (isInvite) {
-              const hash = link.split('/+').pop()?.replace('joinchat/', '') || link;
-              try {
-                await client.invoke(new Api.messages.ImportChatInvite({ hash }));
-              } catch (e: any) {
-                if (!e?.message?.includes('ALREADY')) throw e;
-              }
-              await new Promise(r => setTimeout(r, 1500));
-              entity = await client.getEntity(link).catch(() => client.getEntity(hash));
-            } else {
-              const username = link.replace('t.me/', '').split('/')[0];
-              try {
-                await client.invoke(new Api.channels.JoinChannel({ channel: username }));
-              } catch (e: any) {
-                if (!e?.message?.includes('ALREADY')) throw e;
-              }
-              entity = await client.getEntity(username);
-            }
-
-            const gId    = entity.id?.toString() || '';
-            const title  = entity.title || entity.username || rawLink;
-            const fullId = gId.startsWith('-') ? gId : `-100${gId}`;
-
-            const res = addGroup({ id: fullId, title, link: rawLink });
+            const res = await processGroupJoin(client, args);
             await reply(client, senderId,
-              `✅ Muvaffaqiyatli!\n\n👥 *${title}*\n🆔 \`${fullId}\`\n\n` +
+              `✅ Muvaffaqiyatli!\n\n👥 *${res.title}*\n\n` +
               (res.success ? '💾 Saqlandi.' : res.message),
               true
             );
@@ -127,6 +99,41 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
               `• Yopiq guruh: /addgroup https://t.me/+InviteHash`
             );
           }
+          break;
+        }
+
+        case '/bulk_add': {
+          if (!args) {
+            await reply(client, senderId, '❌ Guruh linklarini tashlang (har birini yangi qatordan yoki probel bilan).');
+            break;
+          }
+
+          const links = args.split(/[\n\s]+/).filter(Boolean);
+          await reply(client, senderId, `⏳ ${links.length} ta guruhga qo'shilish boshlandi...\n⚠️ Telegram bloklab qo'ymasligi uchun har bir guruh orasida 3 soniya kutiladi.`);
+
+          let successCount = 0;
+          let failCount = 0;
+          const results: string[] = [];
+
+          for (const link of links) {
+            try {
+              const res = await processGroupJoin(client, link);
+              if (res.success) successCount++;
+              results.push(`✅ ${res.title}`);
+            } catch (err: any) {
+              failCount++;
+              results.push(`❌ ${link}: ${err?.message || 'Xato'}`);
+            }
+            await new Promise(r => setTimeout(r, 3000));
+          }
+
+          await reply(client, senderId,
+            `📊 *Bulk Add Natijalari:*\n` +
+            `✅ Muvaffaqiyatli: ${successCount} ta\n` +
+            `❌ Xatolik: ${failCount} ta\n\n` +
+            results.join('\n'),
+            true
+          );
           break;
         }
 
@@ -251,6 +258,38 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
   }, new NewMessage({ incoming: true }));
 
   logger.info(`✅ DM handler ishga tushdi (egalar: ${ownerIds.join(',')})`);
+}
+
+async function processGroupJoin(client: TelegramClient, rawLink: string): Promise<{ success: boolean; title: string; message: string }> {
+  const link = rawLink.replace('https://', '').replace('http://', '').trim();
+  const isInvite = link.includes('/+') || link.includes('joinchat/');
+  let entity: any;
+
+  if (isInvite) {
+    const hash = link.split('/+').pop()?.replace('joinchat/', '') || link;
+    try {
+      await client.invoke(new Api.messages.ImportChatInvite({ hash }));
+    } catch (e: any) {
+      if (!e?.message?.includes('ALREADY')) throw e;
+    }
+    await new Promise(r => setTimeout(r, 1500));
+    entity = await client.getEntity(link).catch(() => client.getEntity(hash));
+  } else {
+    const username = link.replace('t.me/', '').split('/')[0];
+    try {
+      await client.invoke(new Api.channels.JoinChannel({ channel: username }));
+    } catch (e: any) {
+      if (!e?.message?.includes('ALREADY')) throw e;
+    }
+    entity = await client.getEntity(username);
+  }
+
+  const gId    = entity.id?.toString() || '';
+  const title  = entity.title || entity.username || rawLink;
+  const fullId = gId.startsWith('-') ? gId : `-100${gId}`;
+
+  const res = addGroup({ id: fullId, title, link: rawLink });
+  return { success: res.success, title, message: res.message };
 }
 
 async function reply(client: TelegramClient, toId: string, message: string, markdown = false): Promise<void> {

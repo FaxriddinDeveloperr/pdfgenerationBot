@@ -213,6 +213,7 @@ export function getStatus(): string {
 
     `━━━ 👥 Guruhlar ━━━━━━━━━━\n` +
     `/addgroup <link>   — qo'shish\n` +
+    `/bulk_add <links>  — ko'p qo'shish\n` +
     `/listgroups        — ro'yxat\n` +
     `/removegroup <N>   — o'chirish\n\n` +
 
