@@ -13,7 +13,7 @@ import {
 let waitingForAd = false;
 
 export async function startDmHandler(client: TelegramClient): Promise<void> {
-  const ownerId = process.env.BROADCAST_OWNER_ID || readConfig().ownerId;
+  const ownerIds = (process.env.BROADCAST_OWNER_ID || readConfig().ownerId).split(',').map(id => id.trim()).filter(Boolean);
 
   client.addEventHandler(async (event: NewMessageEvent) => {
     try {
@@ -25,7 +25,7 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
 
       // Faqat egasidan
       const senderId = message.senderId?.toString();
-      if (senderId !== ownerId) return;
+      if (!senderId || !ownerIds.includes(senderId)) return;
 
       const text = (message.text || '').trim();
 
@@ -35,7 +35,7 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
 
         // /cancelad matni yuborilgan bo'lsa — bekor qilish
         if (text === '/cancelad') {
-          await reply(client, ownerId, '✅ Bekor qilindi.');
+          await reply(client, senderId, '✅ Bekor qilindi.');
           return;
         }
 
@@ -52,7 +52,7 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
         const ad = addAd(msgId, chatId, mediaType);
         logger.info(`📢 Reklama qo'shildi: #${ad.id} type=${mediaType}`);
 
-        await reply(client, ownerId,
+        await reply(client, senderId,
           `✅ Reklama qo'shildi!\n\n` +
           `🔢 Tartib raqami: *${ad.id}*\n` +
           `📁 Tur: ${mediaType}\n\n` +
@@ -75,7 +75,7 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
 
         case '/addgroup': {
           if (!args) {
-            await reply(client, ownerId,
+            await reply(client, senderId,
               '❌ Link kiriting:\n' +
               '/addgroup https://t.me/username\n' +
               '/addgroup https://t.me/+InviteHash'
@@ -83,7 +83,7 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
             break;
           }
 
-          await reply(client, ownerId, '⏳ Guruhga qo\'shilmoqda...');
+          await reply(client, senderId, '⏳ Guruhga qo\'shilmoqda...');
 
           try {
             const rawLink = args;
@@ -115,13 +115,13 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
             const fullId = gId.startsWith('-') ? gId : `-100${gId}`;
 
             const res = addGroup({ id: fullId, title, link: rawLink });
-            await reply(client, ownerId,
+            await reply(client, senderId,
               `✅ Muvaffaqiyatli!\n\n👥 *${title}*\n🆔 \`${fullId}\`\n\n` +
               (res.success ? '💾 Saqlandi.' : res.message),
               true
             );
           } catch (err: any) {
-            await reply(client, ownerId,
+            await reply(client, senderId,
               `❌ Xato: ${err?.message || err}\n\n` +
               `• Ochiq guruh: /addgroup https://t.me/username\n` +
               `• Yopiq guruh: /addgroup https://t.me/+InviteHash`
@@ -132,21 +132,21 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
 
         case '/removegroup': {
           const n = parseInt(args);
-          if (isNaN(n)) { await reply(client, ownerId, '❌ Raqam kiriting: /removegroup 1'); break; }
+          if (isNaN(n)) { await reply(client, senderId, '❌ Raqam kiriting: /removegroup 1'); break; }
           const res = removeGroup(n);
-          await reply(client, ownerId, res.message);
+          await reply(client, senderId, res.message);
           break;
         }
 
         case '/listgroups':
-          await reply(client, ownerId, listGroups(), true);
+          await reply(client, senderId, listGroups(), true);
           break;
 
         // ━━━━ REKLAMA BOSHQARISH ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         case '/setad': {
           waitingForAd = true;
-          await reply(client, ownerId,
+          await reply(client, senderId,
             '📢 Reklama xabarini yuboring!\n\n' +
             'Qo\'llab-quvvatlanadi:\n' +
             '• Matn\n• 🖼 Rasm + caption\n• 🎥 Video + caption\n• 🎵 Ovozli xabar\n• ⭕ Doiraviy video\n\n' +
@@ -157,87 +157,87 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
 
         case '/cancelad': {
           waitingForAd = false;
-          await reply(client, ownerId, '✅ Bekor qilindi.');
+          await reply(client, senderId, '✅ Bekor qilindi.');
           break;
         }
 
         case '/listads':
-          await reply(client, ownerId, listAds(), true);
+          await reply(client, senderId, listAds(), true);
           break;
 
         case '/showad': {
           const config = readConfig();
           const n = parseInt(args);
           const idx = isNaN(n) ? 0 : n - 1;
-          if (!config.ads.length) { await reply(client, ownerId, '📭 Reklamalar yo\'q.'); break; }
+          if (!config.ads.length) { await reply(client, senderId, '📭 Reklamalar yo\'q.'); break; }
           const ad = config.ads[idx];
-          if (!ad) { await reply(client, ownerId, `❌ ${n}-reklama topilmadi.`); break; }
+          if (!ad) { await reply(client, senderId, `❌ ${n}-reklama topilmadi.`); break; }
           try {
-            await client.forwardMessages(ownerId, { messages: [ad.messageId], fromPeer: ad.chatId });
-            await reply(client, ownerId, `ℹ️ Reklama #${idx + 1} (tur: ${ad.mediaType})`);
+            await client.forwardMessages(senderId, { messages: [ad.messageId], fromPeer: ad.chatId });
+            await reply(client, senderId, `ℹ️ Reklama #${idx + 1} (tur: ${ad.mediaType})`);
           } catch {
-            await reply(client, ownerId, `ID: ${ad.id} | Tur: ${ad.mediaType}`);
+            await reply(client, senderId, `ID: ${ad.id} | Tur: ${ad.mediaType}`);
           }
           break;
         }
 
         case '/removead': {
           const n = parseInt(args);
-          if (isNaN(n)) { await reply(client, ownerId, '❌ Raqam kiriting: /removead 1'); break; }
+          if (isNaN(n)) { await reply(client, senderId, '❌ Raqam kiriting: /removead 1'); break; }
           const res = removeAd(n);
-          await reply(client, ownerId, res.message);
+          await reply(client, senderId, res.message);
           break;
         }
 
         case '/clearads': {
           clearAds();
-          await reply(client, ownerId, '✅ Barcha reklamalar o\'chirildi.');
+          await reply(client, senderId, '✅ Barcha reklamalar o\'chirildi.');
           break;
         }
 
         // ━━━━ VAQT BOSHQARISH ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         case '/addtime': {
-          if (!args) { await reply(client, ownerId, '❌ Masalan: /addtime 09:10'); break; }
+          if (!args) { await reply(client, senderId, '❌ Masalan: /addtime 09:10'); break; }
           const res = addTime(args);
-          await reply(client, ownerId, res.message);
-          if (res.success) { restartScheduler(client); await reply(client, ownerId, '🔄 Scheduler yangilandi.'); }
+          await reply(client, senderId, res.message);
+          if (res.success) { restartScheduler(client); await reply(client, senderId, '🔄 Scheduler yangilandi.'); }
           break;
         }
 
         case '/removetime': {
-          if (!args) { await reply(client, ownerId, '❌ Masalan: /removetime 14:00'); break; }
+          if (!args) { await reply(client, senderId, '❌ Masalan: /removetime 14:00'); break; }
           const res = removeTime(args);
-          await reply(client, ownerId, res.message);
-          if (res.success) { restartScheduler(client); await reply(client, ownerId, '🔄 Scheduler yangilandi.'); }
+          await reply(client, senderId, res.message);
+          if (res.success) { restartScheduler(client); await reply(client, senderId, '🔄 Scheduler yangilandi.'); }
           break;
         }
 
         case '/listtimes':
-          await reply(client, ownerId, listTimes());
+          await reply(client, senderId, listTimes());
           break;
 
         // ━━━━ YUBORISH VA STATUS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
         case '/sendnow': {
           const config = readConfig();
-          if (!config.ads.length) { await reply(client, ownerId, '❌ Reklama yo\'q: /setad'); break; }
-          if (!config.groups.length) { await reply(client, ownerId, '❌ Guruh yo\'q: /addgroup <link>'); break; }
-          await reply(client, ownerId,
+          if (!config.ads.length) { await reply(client, senderId, '❌ Reklama yo\'q: /setad'); break; }
+          if (!config.groups.length) { await reply(client, senderId, '❌ Guruh yo\'q: /addgroup <link>'); break; }
+          await reply(client, senderId,
             `⏳ Yuborilmoqda...\n📢 ${config.ads.length} reklama × 👥 ${config.groups.length} guruh`
           );
           await sendBroadcast(client);
-          await reply(client, ownerId, '✅ Yakunlandi!');
+          await reply(client, senderId, '✅ Yakunlandi!');
           break;
         }
 
         case '/status':
-          await reply(client, ownerId, getStatus(), true);
+          await reply(client, senderId, getStatus(), true);
           break;
 
         case '/help':
         case '/start':
-          await reply(client, ownerId, getHelp());
+          await reply(client, senderId, getHelp());
           break;
 
         default:
@@ -250,7 +250,7 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
     }
   }, new NewMessage({ incoming: true }));
 
-  logger.info(`✅ DM handler ishga tushdi (egasi: ${ownerId})`);
+  logger.info(`✅ DM handler ishga tushdi (egalar: ${ownerIds.join(',')})`);
 }
 
 async function reply(client: TelegramClient, toId: string, message: string, markdown = false): Promise<void> {
