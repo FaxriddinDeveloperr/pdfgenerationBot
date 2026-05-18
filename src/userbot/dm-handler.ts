@@ -64,8 +64,7 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
         return;
       }
 
-      // ── Buyruqlarni parse qilish ───────────────────────────
-      const spaceIdx = text.indexOf(' ');
+      const spaceIdx = text.search(/\s/);
       const cmd  = (spaceIdx === -1 ? text : text.slice(0, spaceIdx)).toLowerCase();
       const args = spaceIdx === -1 ? '' : text.slice(spaceIdx + 1).trim();
 
