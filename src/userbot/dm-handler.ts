@@ -179,7 +179,7 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
           const ad = config.ads[idx];
           if (!ad) { await reply(client, senderId, `❌ ${n}-reklama topilmadi.`); break; }
           try {
-            await client.forwardMessages(senderId, { messages: [ad.messageId], fromPeer: ad.chatId });
+            await client.forwardMessages(senderId, { messages: [ad.messageId], fromPeer: ad.chatId, dropAuthor: true });
             await reply(client, senderId, `ℹ️ Reklama #${idx + 1} (tur: ${ad.mediaType})`);
           } catch {
             await reply(client, senderId, `ID: ${ad.id} | Tur: ${ad.mediaType}`);

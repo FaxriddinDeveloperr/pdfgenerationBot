@@ -253,6 +253,7 @@ export async function sendBroadcast(client: TelegramClient): Promise<void> {
       await client.forwardMessages(group.id, {
         messages: [ad.messageId],
         fromPeer: ad.chatId,
+        dropAuthor: true,
       });
       logger.info(`✅ Yuborildi: "${group.title}" (reklama #${ad.id})`);
     } catch (err: any) {
