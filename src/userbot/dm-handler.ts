@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
 import {
   addGroup, removeGroup, listGroups,
   addAd, removeAd, clearAds, listAds,
-  addTime, removeTime, listTimes,
+  resetIndex,
   getStatus, getHelp, sendBroadcast, restartScheduler, readConfig,
 } from './broadcast';
 
@@ -201,27 +201,11 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
           break;
         }
 
-        // ━━━━ VAQT BOSHQARISH ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        case '/addtime': {
-          if (!args) { await reply(client, senderId, '❌ Masalan: /addtime 09:10'); break; }
-          const res = addTime(args);
+        case '/resetindex': {
+          const res = resetIndex();
           await reply(client, senderId, res.message);
-          if (res.success) { restartScheduler(client); await reply(client, senderId, '🔄 Scheduler yangilandi.'); }
           break;
         }
-
-        case '/removetime': {
-          if (!args) { await reply(client, senderId, '❌ Masalan: /removetime 14:00'); break; }
-          const res = removeTime(args);
-          await reply(client, senderId, res.message);
-          if (res.success) { restartScheduler(client); await reply(client, senderId, '🔄 Scheduler yangilandi.'); }
-          break;
-        }
-
-        case '/listtimes':
-          await reply(client, senderId, listTimes());
-          break;
 
         // ━━━━ YUBORISH VA STATUS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
