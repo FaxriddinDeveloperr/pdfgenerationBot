@@ -31,11 +31,10 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
 
       // ── /setad rejimi: keyingi xabar reklama ──────────────
       if (waitingForAd) {
-        waitingForAd = false;
-
-        // /cancelad matni yuborilgan bo'lsa — bekor qilish
-        if (text === '/cancelad') {
-          await reply(client, senderId, '✅ Bekor qilindi.');
+        // /cancelad yoki /done matni yuborilgan bo'lsa — bekor qilish/yakunlash
+        if (text === '/cancelad' || text === '/done') {
+          waitingForAd = false;
+          await reply(client, senderId, `✅ Reklama qabul qilish yakunlandi.\nJami reklamalar: ${readConfig().ads.length} ta\n/listads — ro'yxatni ko'rish`);
           return;
         }
 
@@ -53,12 +52,9 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
         logger.info(`📢 Reklama qo'shildi: #${ad.id} type=${mediaType}`);
 
         await reply(client, senderId,
-          `✅ Reklama qo'shildi!\n\n` +
-          `🔢 Tartib raqami: *${ad.id}*\n` +
-          `📁 Tur: ${mediaType}\n\n` +
-          `Jami reklamalar: ${readConfig().ads.length} ta\n` +
-          `/listads — ro'yxatni ko'rish\n` +
-          `/setad — yana reklama qo'shish`,
+          `✅ #${ad.id} reklama qo'shildi (${mediaType})!\n\n` +
+          `Yana reklama yuborishingiz mumkin.\n` +
+          `🛑 Barcha reklamalarni tashlab bo'lgach, tugatish uchun /done ni bosing.`,
           true
         );
         return;
@@ -153,17 +149,18 @@ export async function startDmHandler(client: TelegramClient): Promise<void> {
         case '/setad': {
           waitingForAd = true;
           await reply(client, senderId,
-            '📢 Reklama xabarini yuboring!\n\n' +
+            '📢 Reklama xabarlarini yuboring (bir nechta yuborish mumkin)!\n\n' +
             'Qo\'llab-quvvatlanadi:\n' +
             '• Matn\n• 🖼 Rasm + caption\n• 🎥 Video + caption\n• 🎵 Ovozli xabar\n• ⭕ Doiraviy video\n\n' +
-            'Bekor qilish uchun /cancelad yuboring.'
+            '🛑 Barcha reklamalarni yuborib bo\'lgach, tugatish uchun /done ni yuboring.'
           );
           break;
         }
 
+        case '/done':
         case '/cancelad': {
           waitingForAd = false;
-          await reply(client, senderId, '✅ Bekor qilindi.');
+          await reply(client, senderId, '✅ Reklama qabul qilish to\'xtatildi.');
           break;
         }
 
