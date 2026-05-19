@@ -23,7 +23,7 @@ export interface AdItem {
 export interface BroadcastConfig {
   groups: BroadcastGroup[];
   ads: AdItem[];
-  times: string[];
+  currentIndex: number;
   ownerId: string;
 }
 
@@ -41,7 +41,7 @@ export function readConfig(): BroadcastConfig {
       const def: BroadcastConfig = {
         groups: [],
         ads: [],
-        times: ['09:10', '14:00'],
+        currentIndex: 0,
         ownerId: process.env.BROADCAST_OWNER_ID || '',
       };
       fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
@@ -61,11 +61,17 @@ export function readConfig(): BroadcastConfig {
       delete raw.adMediaType;
       fs.writeFileSync(DATA_PATH, JSON.stringify(raw, null, 2));
     }
+    // Eski format (times) -> yangi format (currentIndex) ga ko'chirish
+    if (typeof raw.currentIndex !== 'number') {
+      raw.currentIndex = 0;
+      delete raw.times;
+      fs.writeFileSync(DATA_PATH, JSON.stringify(raw, null, 2));
+    }
 
     return raw as BroadcastConfig;
   } catch (err) {
     logger.error('broadcast.json o\'qishda xato:', err);
-    return { groups: [], ads: [], times: ['09:10', '14:00'], ownerId: '' };
+    return { groups: [], ads: [], currentIndex: 0, ownerId: '' };
   }
 }
 
@@ -142,45 +148,19 @@ export function listAds(): string {
   const config = readConfig();
   if (!config.ads.length) return '📭 Reklamalar yo\'q. /setad bilan qo\'shing.';
   const lines = config.ads.map((a, i) =>
-    `${i + 1}. ID: \`${a.id}\` • Tur: ${a.mediaType}`
+    `${i + 1}. ID: \`${a.id}\` • Tur: ${a.mediaType}` + (i === config.currentIndex ? ' 👈 (navbatdagi)' : '')
   );
   return `📢 Reklamalar (${config.ads.length} ta):\n\n${lines.join('\n')}\n\n/showad <N> — ko'rish\n/removead <N> — o'chirish`;
 }
 
 // ============================================================
-// VAQT boshqarish
+// NAVBAT boshqarish
 // ============================================================
-export function addTime(time: string): { success: boolean; message: string } {
-  if (!/^\d{2}:\d{2}$/.test(time)) {
-    return { success: false, message: '❌ HH:MM shaklida kiriting. Masalan: /addtime 09:10' };
-  }
-  const [h, m] = time.split(':').map(Number);
-  if (h > 23 || m > 59) {
-    return { success: false, message: '❌ Noto\'g\'ri vaqt.' };
-  }
+export function resetIndex(): { success: boolean; message: string } {
   const config = readConfig();
-  if (config.times.includes(time)) {
-    return { success: false, message: `❌ Bu vaqt allaqachon bor: ${time}` };
-  }
-  config.times.push(time);
-  config.times.sort();
+  config.currentIndex = 0;
   saveConfig(config);
-  return { success: true, message: `✅ Vaqt qo'shildi: ${time}` };
-}
-
-export function removeTime(time: string): { success: boolean; message: string } {
-  const config = readConfig();
-  const idx = config.times.indexOf(time);
-  if (idx === -1) return { success: false, message: `❌ Topilmadi: ${time}` };
-  config.times.splice(idx, 1);
-  saveConfig(config);
-  return { success: true, message: `✅ Vaqt o'chirildi: ${time}` };
-}
-
-export function listTimes(): string {
-  const config = readConfig();
-  if (!config.times.length) return '🕐 Vaqtlar belgilanmagan.';
-  return `🕐 Vaqtlar (${config.times.length} ta):\n${config.times.join('\n')}`;
+  return { success: true, message: `✅ Reklama navbati boshiga qaytarildi.` };
 }
 
 // ============================================================
@@ -194,12 +174,8 @@ export function getStatus(): string {
     : `❌ Guruh yo'q`;
 
   const adStatus = config.ads.length > 0
-    ? `✅ ${config.ads.length} ta reklama`
+    ? `✅ ${config.ads.length} ta reklama (navbat: ${config.currentIndex + 1})`
     : `❌ Reklama yo'q`;
-
-  const timeStatus = config.times.length > 0
-    ? config.times.map(t => `🕐 ${t}`).join('   ')
-    : `❌ Belgilanmagan`;
 
   return (
     `╔══════════════════════╗\n` +
@@ -209,7 +185,7 @@ export function getStatus(): string {
     `━━━ 📊 Holat ━━━━━━━━━━━━━\n` +
     `👥 Guruhlar:   ${groupStatus}\n` +
     `📢 Reklamalar: ${adStatus}\n` +
-    `⏰ Jadval:     ${timeStatus}\n\n` +
+    `⏰ Jadval:     Har 20 daqiqada (09:00 dan 18:59 gacha)\n\n` +
 
     `━━━ 👥 Guruhlar ━━━━━━━━━━\n` +
     `/addgroup <link>   — qo'shish\n` +
@@ -222,15 +198,11 @@ export function getStatus(): string {
     `/listads           — ro'yxat\n` +
     `/showad <N>        — ko'rish\n` +
     `/removead <N>      — o'chirish\n` +
-    `/clearads          — hammasini o'chirish\n\n` +
-
-    `━━━ ⏰ Jadval ━━━━━━━━━━━━\n` +
-    `/addtime HH:MM     — vaqt qo'shish\n` +
-    `/removetime HH:MM  — vaqt o'chirish\n` +
-    `/listtimes         — vaqtlar\n\n` +
+    `/clearads          — hammasini o'chirish\n` +
+    `/resetindex        — navbatni boshidan boshlash\n\n` +
 
     `━━━ 🚀 Boshqaruv ━━━━━━━━━\n` +
-    `/sendnow           — hoziroq yuborish\n` +
+    `/sendnow           — bitta reklamani hoziroq barcha guruhlarga yuborish\n` +
     `/status            — bu panel`
   );
 }
@@ -245,7 +217,7 @@ export function getHelp(): string {
     `  /addgroup https://t.me/+InviteHash\n\n` +
     `Reklama qo'shish:\n` +
     `  /setad  → keyin xabar yuboring\n\n` +
-    `Test yuborish:\n` +
+    `Test yuborish (navbatdagi bitta reklama):\n` +
     `  /sendnow\n\n` +
     `To'liq panel:\n` +
     `  /status`
@@ -253,10 +225,10 @@ export function getHelp(): string {
 }
 
 // ============================================================
-// BROADCAST — barcha reklamalarni barcha guruhlarga yuborish
+// BROADCAST — bitta navbatdagi reklamani barcha guruhlarga yuborish
 // ============================================================
 export async function sendBroadcast(client: TelegramClient): Promise<void> {
-  const config = readConfig();
+  let config = readConfig();
 
   if (!config.ads.length) {
     logger.warn('📭 Broadcast: reklamalar yo\'q, o\'tkazib yuborildi.');
@@ -267,31 +239,38 @@ export async function sendBroadcast(client: TelegramClient): Promise<void> {
     return;
   }
 
-  logger.info(`📢 Broadcast: ${config.ads.length} reklama × ${config.groups.length} guruh`);
+  // Indeks chegaradan chiqib ketgan bo'lsa to'g'rilash (masalan reklama o'chirilgan bo'lsa)
+  if (config.currentIndex >= config.ads.length) {
+    config.currentIndex = 0;
+  }
+
+  const ad = config.ads[config.currentIndex];
+
+  logger.info(`📢 Broadcast: Reklama #${config.currentIndex + 1}/${config.ads.length} -> ${config.groups.length} ta guruhga`);
 
   for (const group of config.groups) {
-    for (const ad of config.ads) {
-      try {
-        await client.forwardMessages(group.id, {
-          messages: [ad.messageId],
-          fromPeer: ad.chatId,
-        });
-        logger.info(`✅ Yuborildi: "${group.title}" (reklama #${ad.id})`);
-        // Reklamalar orasida 1 soniya pauza
-        await new Promise(r => setTimeout(r, 1000));
-      } catch (err: any) {
-        logger.error(`❌ Xato (${group.title}, reklama #${ad.id}): ${err?.message || err}`);
-      }
+    try {
+      await client.forwardMessages(group.id, {
+        messages: [ad.messageId],
+        fromPeer: ad.chatId,
+      });
+      logger.info(`✅ Yuborildi: "${group.title}" (reklama #${ad.id})`);
+    } catch (err: any) {
+      logger.error(`❌ Xato (${group.title}, reklama #${ad.id}): ${err?.message || err}`);
     }
     // Guruhlar orasida 2 soniya pauza (spam himoya)
     await new Promise(r => setTimeout(r, 2000));
   }
 
-  logger.info('📢 Broadcast yakunlandi.');
+  // Navbatni keyingisiga o'tkazish
+  config.currentIndex = (config.currentIndex + 1) % config.ads.length;
+  saveConfig(config);
+
+  logger.info(`📢 Broadcast yakunlandi. Keyingi navbat: #${config.currentIndex + 1}`);
 }
 
 // ============================================================
-// CRON SCHEDULER
+// CRON SCHEDULER (Har 20 daqiqada: 09:00 dan 18:59 gacha)
 // ============================================================
 let scheduledJobs: cron.ScheduledTask[] = [];
 
@@ -299,21 +278,21 @@ export function startScheduler(client: TelegramClient): void {
   stopScheduler();
   const config = readConfig();
 
-  if (!config.times.length) {
-    logger.info('🕐 Broadcast: vaqtlar yo\'q, scheduler ishlamadi.');
-    return;
+  if (!config.ads.length) {
+    logger.info('🕐 Broadcast: reklamalar yo\'q, scheduler ishlamadi.');
+    // Keep it running actually, in case they add later, but it's okay, we can restart on /setad.
   }
 
-  for (const time of config.times) {
-    const [hour, minute] = time.split(':');
-    const job = cron.schedule(`${minute} ${hour} * * *`, async () => {
-      logger.info(`⏰ Broadcast vaqti: ${time}`);
-      await sendBroadcast(client);
-    }, { timezone: 'Asia/Tashkent' });
+  // "*/20 9-18 * * *" -> Har soatning 0, 20, 40 daqiqalarida, soat 09:00 dan 18:59 gacha
+  const scheduleTime = '*/20 9-18 * * *';
+  
+  const job = cron.schedule(scheduleTime, async () => {
+    logger.info(`⏰ Broadcast vaqti (Har 20 daqiqada)`);
+    await sendBroadcast(client);
+  }, { timezone: 'Asia/Tashkent' });
 
-    scheduledJobs.push(job);
-    logger.info(`⏰ Scheduler: ${time} (Toshkent vaqti)`);
-  }
+  scheduledJobs.push(job);
+  logger.info(`⏰ Scheduler o'rnatildi: ${scheduleTime} (Toshkent vaqti: 09:00 dan 18:59 gacha har 20 daqiqa)`);
 }
 
 export function stopScheduler(): void {
